@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pages/welcome.dart';
 import 'pages/main.dart';
+import 'pages/note.dart';
 
 void main() {
   runApp(const Buri());
@@ -30,6 +31,7 @@ class Buri extends StatelessWidget {
       routes: {
         "/": (context) => const Welcome(),
         "/main": (context) => MainWidget(),
+        "/note": (context) => CreateNote(),
       },
       // home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
