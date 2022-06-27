@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'timeline.dart';
 import 'notification.dart';
+import 'note.dart';
 
 
 class MainWidget extends StatefulWidget {
@@ -32,9 +33,10 @@ class MainState extends State {
     List<Widget> bodyList = [
       Timeline(host: host, apiKey: apiKey,),
       const Notif(),
-      ElevatedButton(onPressed: (){Navigator.pop(context);}, child: const Text("btn"),)
+      ElevatedButton(onPressed: (){Navigator.pop(context);}, child: const Text("back to login"),)
     ];
     return Scaffold(
+      floatingActionButton: FloatingActionButton(onPressed: () {Navigator.pushNamed(context, "/note", arguments: {host, apiKey});}, child: const Icon(Icons.add)),
       body: IndexedStack(
         index: _currentIndex,
         children: bodyList,

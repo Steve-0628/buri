@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 
 // class Timeline extends StatefulWidget {
@@ -56,13 +57,15 @@ class Timeline extends StatelessWidget {
                 child: TimelineBuilder(apiKey: apiKey, host: host, apiUrl: "timeline",)
               ),
               Container(
-                child: Text("local")
+                // child: TimelineBuilder(apiKey: apiKey, host: host, apiUrl: "local-timeline",)
+                child: Text("Local timeline is not implemented. ")
               ),
               Container(
-                child: Text("social")
+                child: TimelineBuilder(apiKey: apiKey, host: host, apiUrl: "hybrid-timeline",)
               ),
               Container(
-                child: Text("global")
+                // child: TimelineBuilder(apiKey: apiKey, host: host, apiUrl: "global-timeline",)
+                child: Text("Global is not implemented. ")
               ),
             ],
           )
@@ -89,7 +92,9 @@ class TimelineBuilder extends StatefulWidget {
 
 class TimelineState extends State<TimelineBuilder> with AutomaticKeepAliveClientMixin{
   List<Widget> timeline = [];
-  dynamic InstanceInfo = {}; //TODO ローカルのノートはInstance情報が返ってこないのでどこかで初期化する
+  dynamic InstanceInfo = {};
+  int num = 0;
+  late WebSocketChannel _stream;
 
   Future<http.Response> request(dynamic body) {
     body == null ? body = {"i": widget.apiKey} : body["i"] = widget.apiKey;
@@ -98,11 +103,30 @@ class TimelineState extends State<TimelineBuilder> with AutomaticKeepAliveClient
 
   Widget createNote(note){
     dynamic main = note["renote"] ?? note;
-    print(note);
+    // print(note);
+    Widget rnStatus = Row(
+      children: [
+        SizedBox(
+          width: 32,
+          height:32,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(48),
+              child: Image.network(note["user"]["avatarUrl"], fit: BoxFit.contain)
+            ),
+          ),
+        ),
+        Icon(Icons.repeat),
+        Text("${note["user"]["name"] ?? note["user"]["username"]}がRenote")
+
+      ]
+    );
     return Column(
       children: [
         Row(), // リプ
-        Row(), // RN
+        // Row(), // RN
+        note["renote"] != null ? rnStatus : const SizedBox.shrink(),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -125,14 +149,15 @@ class TimelineState extends State<TimelineBuilder> with AutomaticKeepAliveClient
                   children: [
                     Row(
                       children: [
-                        Text(main["user"]["name"] ?? main["user"]["username"]),
+                        Text(main["user"]["name"] ?? main["user"]["username"], style: const TextStyle(fontWeight: FontWeight.bold),),
                         const SizedBox(width: 2),
                         Text("@" + main["user"]["username"]),
                         if(main["user"]["host"] != null) Text("@" + main["user"]["host"])
                       ],
                     ),  // TODO もうちょっといいかんじに
                     Container(
-                      color: Color(main["user"]["instance"] == null ?  int.parse(InstanceInfo["themeColor"].substring(1, 6), radix: 16) : int.parse(main["user"]["instance"]["themeColor"].substring(1, 6), radix: 16)),
+                      // color: Color(main["user"]["instance"] == null ?  int.parse(InstanceInfo["themeColor"].substring(1, 6), radix: 16) : int.parse(main["user"]["instance"]["themeColor"].substring(1, 6), radix: 16)),
+                      //TODO: Decorationにする
                       child: Row(
                         children: [
                           SizedBox(
@@ -163,20 +188,61 @@ class TimelineState extends State<TimelineBuilder> with AutomaticKeepAliveClient
     InstanceInfo = json.decode(instanceInfo.body.toString());
     http.Response resp = await request(null);
     List<dynamic> notes = json.decode(resp.body.toString());
-    List<Widget> notesTemp = [];
+    // List<Widget> notesTemp = [];
     for(var note in notes){
-      notesTemp.add(createNote(note));
+
+      setState(() {
+        // timeline.add(createNote(note)); //TODO 壊れている
+        timeline = [...timeline, createNote(note)];
+        num+=1;
+      });
+      // notesTemp.
     }
-    setState(() {
-      timeline = notesTemp;
-    });
   }
 
   @override
   initState() {
     super.initState();
     initTimeline();
-
+    _stream = WebSocketChannel.connect(
+      Uri(scheme: "wss", host: widget.host, path: "streaming", queryParameters: {"i": widget.apiKey})
+    );
+    String? channelName;
+    if(widget.apiUrl == "timeline"){
+      channelName = "homeTimeline";
+    }
+    else if(widget.apiUrl == "hybrid-timeline"){
+      channelName = "hybridTimeline";
+    }else if(widget.apiUrl == "global-timeline"){
+      channelName = "globalTimeline";
+    }else if(widget.apiUrl == "local-timeline"){
+      channelName = "localTimeline";
+    }
+    if(channelName != null){
+      _stream.sink.add(
+        json.encode(
+          {
+            "type": 'connect',
+            "body": {
+              "channel": 'homeTimeline',
+              "id": 'foobar',
+            }
+          }
+        )
+      );
+      _stream.stream.listen((msg) {
+        var jsmsg = json.decode(msg);
+        print(jsmsg);
+        var note = createNote(jsmsg["body"]["body"]);
+        setState(() {
+          // timeline.add(note);
+          // timeline.insert(0, note); //TODO ここも壊れている
+          // num+=1;
+          timeline = [note, ...timeline];
+          // timeline.insert(0, note);
+        });
+      });
+    }
   }
 
   @override
